@@ -44,5 +44,10 @@
       <summary>Karaoke Effect</summary>
       <description>Enable karaoke sweep animation</description>
     </key>
+    <key name="show-lyrics" type="b">
+      <default>true</default>
+      <summary>Show Lyrics</summary>
+      <description>Show synchronized lyrics in the top bar instead of the track title</description>
+    </key>
   </schema>
 </schemalist>

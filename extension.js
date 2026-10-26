@@ -101,8 +101,8 @@ const MusicLyricsIndicator = GObject.registerClass(
             this._debounceTimeoutId = null;
             this._retryTimeoutId = null;
 
-            // Internal state for lyrics
-            this._showLyrics = true;
+            // 是否显示歌词（由首选项控制）
+            this._showLyrics = this._settings.get_boolean('show-lyrics');
 
             // Apply initial style from settings
             this._applyStyle();
@@ -120,6 +120,9 @@ const MusicLyricsIndicator = GObject.registerClass(
             );
             this._settingsSignals.push(
                 this._settings.connect('changed::karaoke-enabled', () => this._onKaraokeToggled())
+            );
+            this._settingsSignals.push(
+                this._settings.connect('changed::show-lyrics', () => this._onShowLyricsChanged())
             );
 
             this._buildMenu();
@@ -311,6 +314,20 @@ const MusicLyricsIndicator = GObject.registerClass(
 
             this._baseLabel.set_style(baseStyle);
             this._highlightLabel.set_style(hlStyle);
+        }
+
+        // 首选项里切换「显示歌词」时即时生效
+        _onShowLyricsChanged() {
+            this._showLyrics = this._settings.get_boolean('show-lyrics');
+
+            if (!this._showLyrics) {
+                if (this._lyricsTimeoutId) {
+                    GLib.source_remove(this._lyricsTimeoutId);
+                    this._lyricsTimeoutId = null;
+                }
+                this._stopKaraokeAnimation();
+            }
+            this._updateTrackInfo();
         }
 
         _onKaraokeToggled() {

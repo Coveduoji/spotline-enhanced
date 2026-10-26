@@ -72,6 +72,17 @@ export default class SpotLinePreferences extends ExtensionPreferences {
         // --- Appearance Group ---
         const appearGroup = new Adw.PreferencesGroup({ title: 'Appearance' });
 
+        // Show lyrics toggle
+        const showLyricsRow = new Adw.SwitchRow({
+            title: 'Show Lyrics',
+            subtitle: 'Off: show the track title in the top bar instead of lyrics'
+        });
+        showLyricsRow.active = settings.get_boolean('show-lyrics');
+        showLyricsRow.connect('notify::active', () => {
+            settings.set_boolean('show-lyrics', showLyricsRow.active);
+        });
+        appearGroup.add(showLyricsRow);
+
         // Karaoke toggle
         const karaokeRow = new Adw.SwitchRow({
             title: 'Karaoke Effect',
