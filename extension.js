@@ -68,6 +68,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             this.add_child(box);
 
             this._currentTrack = null;
+            this._currentArtUrl = null;
             this._currentLyrics = null;
             this._currentLine = '';
             this._currentLyricIndex = -1;
@@ -112,6 +113,25 @@ const MusicLyricsIndicator = GObject.registerClass(
         }
 
         _buildMenu() {
+            // 左上角齿轮入口：歌词开关 / 刷新 / 关于
+            this._gearMenu = new PopupMenu.PopupSubMenuMenuItem('设置');
+            try {
+                const gearIcon = new St.Icon({
+                    icon_name: 'emblem-system-symbolic',
+                    icon_size: 14,
+                    y_align: Clutter.ActorAlign.CENTER
+                });
+                const labelBox = this._gearMenu.label.get_parent();
+                labelBox.insert_child_at_index(
+                    gearIcon,
+                    labelBox.get_children().indexOf(this._gearMenu.label)
+                );
+            } catch (e) {
+                // 布局结构变化时退化成纯文字
+            }
+            this.menu.addMenuItem(this._gearMenu);
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
             // 封面图
             this._coverIcon = new St.Icon({
                 icon_name: 'media-optical-cd-audio-symbolic',
@@ -194,8 +214,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             controlsItem.add_child(controlsBox);
             this.menu.addMenuItem(controlsItem);
 
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
+            // ---- 以下设置项统一收进左上角齿轮菜单 ----
             // Toggle lyrics display
             this._lyricsToggle = new PopupMenu.PopupSwitchMenuItem(
                 'Show Lyrics',
@@ -213,18 +232,16 @@ const MusicLyricsIndicator = GObject.registerClass(
                     this._updateTrackInfo();
                 }
             });
-            this.menu.addMenuItem(this._lyricsToggle);
-
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            this._gearMenu.menu.addMenuItem(this._lyricsToggle);
 
             // Refresh button
             const refreshItem = new PopupMenu.PopupMenuItem('Refresh Player');
             refreshItem.connect('activate', () => {
                 this._findActivePlayer();
             });
-            this.menu.addMenuItem(refreshItem);
+            this._gearMenu.menu.addMenuItem(refreshItem);
 
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            this._gearMenu.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
             // Info submenu
             this._infoSubmenu = new PopupMenu.PopupSubMenuMenuItem('About');
@@ -246,7 +263,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             creditsItem.label.style = 'font-size: 0.9em; color: #888;';
             this._infoSubmenu.menu.addMenuItem(creditsItem);
 
-            this.menu.addMenuItem(this._infoSubmenu);
+            this._gearMenu.menu.addMenuItem(this._infoSubmenu);
         }
 
         _applyStyle() {
@@ -507,15 +524,46 @@ const MusicLyricsIndicator = GObject.registerClass(
         }
 
         _loadCover(artUrl) {
-            if (!artUrl) {
+            if (!artUrl || artUrl === this._currentArtUrl) {
                 return;
             }
+            this._currentArtUrl = artUrl;
+
+            // artUrl 通常是 http:// 远程地址（网易云 CDN），
+            // St.TextureCache.load_uri_async 对远程 URL 不可靠，
+            // 这里用 Soup 取字节，再交给 TextureCache 解码。
             try {
-                const textureCache = St.TextureCache.get_default();
-                const icon = textureCache.load_uri_async(artUrl, 96, 96);
-                this._coverIcon.set_gicon(icon);
+                const msg = Soup.Message.new('GET', artUrl);
+                msg.get_request_headers().append('User-Agent', 'Mozilla/5.0');
+
+                this._soupSession.send_and_read_async(msg, GLib.PRIORITY_DEFAULT, null, (sess, result) => {
+                    try {
+                        const bytes = sess.send_and_read_finish(result);
+                        if (msg.get_status() !== Soup.Status.OK) {
+                            logError(new Error(`HTTP ${msg.get_status()}`), 'Album art request failed');
+                            return;
+                        }
+
+                        St.TextureCache.get_default().load_bytes_async(
+                            bytes, 96, 96, null,
+                            (cache, res) => {
+                                try {
+                                    const gicon = cache.load_bytes_finish(res);
+                                    // 期间切歌则丢弃过期结果
+                                    if (gicon && artUrl === this._currentArtUrl) {
+                                        this._coverIcon.set_gicon(gicon);
+                                    }
+                                } catch (e) {
+                                    logError(e, 'Failed to decode album art');
+                                }
+                            }
+                        );
+                    } catch (e) {
+                        logError(e, 'Failed to download album art');
+                    }
+                });
             } catch (e) {
-                // 加载失败则保留占位图标
+                logError(e, 'Failed to request album art');
             }
         }
 
