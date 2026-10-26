@@ -77,8 +77,9 @@ Or use the GNOME Extensions app / Extension Manager.
 
 ### Behavior
 
-- **Musicfox-only binding** — `isSupportedPlayer()` now matches only
-  `org.mpris.MediaPlayer2.musicfox`, so browsers, Spotify and other MPRIS players
+- **Musicfox-only binding** — `isSupportedPlayer()` matches the
+  `org.mpris.MediaPlayer2.musicfox*` prefix (musicfox's bus name carries a
+  `.instance<PID>` suffix), so browsers, Spotify and other MPRIS players
   no longer take over the top-bar lyrics.
 - **Hide when idle** — the indicator is hidden entirely instead of showing
   "No music playing".

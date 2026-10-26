@@ -18,9 +18,9 @@ const NETEASE_LYRIC_URL = 'https://music.163.com/api/song/lyric';
 
 const LYRICS_CACHE_MAX = 50;
 
-// 只绑定 musicfox 播放器
+// 只绑定 musicfox 播放器（bus 名带 .instance<PID> 后缀）
 function isSupportedPlayer(busName) {
-    return busName === 'org.mpris.MediaPlayer2.musicfox';
+    return busName.startsWith('org.mpris.MediaPlayer2.musicfox');
 }
 
 const MusicLyricsIndicator = GObject.registerClass(
