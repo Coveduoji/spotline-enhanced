@@ -529,9 +529,20 @@ const MusicLyricsIndicator = GObject.registerClass(
             }
             this._currentArtUrl = artUrl;
 
-            // artUrl 通常是 http:// 远程地址（网易云 CDN），
-            // St.TextureCache.load_uri_async 对远程 URL 不可靠，
-            // 这里用 Soup 取字节，再交给 TextureCache 解码。
+            // artUrl 通常是 http:// 远程地址（网易云 CDN）。
+            // GNOME Shell 50 的 St.TextureCache 已无 load_bytes_async，
+            // 这里用 Soup 下载 → 落到缓存目录 → 用 GFileIcon 交给 St 渲染。
+            const cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'spotline-enhanced']);
+            GLib.mkdir_with_parents(cacheDir, 0o755);
+
+            const applyCover = (path) => {
+                if (artUrl !== this._currentArtUrl) {
+                    return false;
+                }
+                this._coverIcon.set_gicon(new Gio.FileIcon({ file: Gio.File.new_for_path(path) }));
+                return true;
+            };
+
             try {
                 const msg = Soup.Message.new('GET', artUrl);
                 msg.get_request_headers().append('User-Agent', 'Mozilla/5.0');
@@ -544,20 +555,15 @@ const MusicLyricsIndicator = GObject.registerClass(
                             return;
                         }
 
-                        St.TextureCache.get_default().load_bytes_async(
-                            bytes, 96, 96, null,
-                            (cache, res) => {
-                                try {
-                                    const gicon = cache.load_bytes_finish(res);
-                                    // 期间切歌则丢弃过期结果
-                                    if (gicon && artUrl === this._currentArtUrl) {
-                                        this._coverIcon.set_gicon(gicon);
-                                    }
-                                } catch (e) {
-                                    logError(e, 'Failed to decode album art');
-                                }
-                            }
-                        );
+                        // 以内容哈希命名，同一张封面只存一份
+                        const hash = GLib.compute_checksum_for_data(
+                            GLib.ChecksumType.SHA256, bytes.get_data()).slice(0, 16);
+                        const path = GLib.build_filenamev([cacheDir, `${hash}.img`]);
+
+                        if (!GLib.file_test(path, GLib.FileTest.EXISTS)) {
+                            GLib.file_set_contents(path, bytes.get_data());
+                        }
+                        applyCover(path);
                     } catch (e) {
                         logError(e, 'Failed to download album art');
                     }
