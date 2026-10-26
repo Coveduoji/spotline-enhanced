@@ -7,6 +7,7 @@ import Soup from 'gi://Soup?version=3.0';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as Util from 'resource:///org/gnome/shell/misc/util.js';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const MPRIS_PLAYER_PATH = '/org/mpris/MediaPlayer2';
@@ -25,11 +26,12 @@ function isSupportedPlayer(busName) {
 
 const MusicLyricsIndicator = GObject.registerClass(
     class MusicLyricsIndicator extends PanelMenu.Button {
-        _init(settings, extensionPath) {
+        _init(settings, extensionPath, extensionUuid) {
             super._init(0.5, 'Music Lyrics Indicator');
 
             this._settings = settings;
             this._extensionPath = extensionPath;
+            this._extensionUuid = extensionUuid;
 
             // Create a box to hold lyrics container and info icon
             const box = new St.BoxLayout({
@@ -133,10 +135,12 @@ const MusicLyricsIndicator = GObject.registerClass(
         }
 
         _buildMenu() {
-            // 设置入口：左下角小齿轮 + 右下角粗弧线做视觉平衡，
-            // 两者半透明，悬停一起淡入、移开一起淡出
-            this._gearMenu = new PopupMenu.PopupSubMenuMenuItem('');
+            // 设置入口：点击齿轮直接打开扩展首选项。
+            // 左下角齿轮 + 右下角弧线做视觉平衡，两者半透明，
+            // 悬停一起淡入、移开一起淡出
+            this._gearMenu = new PopupMenu.PopupBaseMenuItem({ reactive: true });
             this._gearMenu.add_style_class_name('spotline-footer-item');
+            this._gearMenu.connect('activate', () => this._openPreferences());
             // 内联样式优先于主题样式表，确保 hover/按下/open 都没有底色遮罩，
             // 同时把上边距压到最小
             this._gearMenu.set_style(
@@ -166,21 +170,8 @@ const MusicLyricsIndicator = GObject.registerClass(
                 y_align: Clutter.ActorAlign.END
             });
 
-            try {
-                const labelBox = this._gearMenu.label.get_parent();
-                labelBox.insert_child_at_index(
-                    this._gearIcon,
-                    labelBox.get_children().indexOf(this._gearMenu.label)
-                );
-            } catch (e) {
-                // 布局结构变化时退化成空行
-            }
-            try {
-                // 默认的细三角换成手绘弧线
-                this._gearMenu._triangleBin.hide();
-            } catch (e) {
-                // 结构变化时保留默认三角
-            }
+            this._gearMenu.add_child(this._gearIcon);
+            this._gearMenu.add_child(new St.Bin({ x_expand: true }));
             this._gearMenu.add_child(this._balanceArc);
 
             const fadeTo = (opacity) => {
@@ -286,56 +277,27 @@ const MusicLyricsIndicator = GObject.registerClass(
             // 设置入口置于最底部（不加上方分隔线）
             this.menu.addMenuItem(this._gearMenu);
 
-            // ---- 以下设置项统一收进左上角齿轮菜单 ----
-            // Toggle lyrics display
-            this._lyricsToggle = new PopupMenu.PopupSwitchMenuItem(
-                'Show Lyrics',
-                this._showLyrics
-            );
-            this._lyricsToggle.connect('toggled', (item) => {
-                this._showLyrics = item.state;
-                if (!item.state) {
-                    if (this._lyricsTimeoutId) {
-                        GLib.source_remove(this._lyricsTimeoutId);
-                        this._lyricsTimeoutId = null;
-                    }
-                    this._updateTrackInfo();
-                } else {
-                    this._updateTrackInfo();
+        }
+
+        // 齿轮点击：打开扩展首选项
+        _openPreferences() {
+            try {
+                const extension = Main.extensionManager.lookup(this._extensionUuid);
+                if (extension) {
+                    extension.openPreferences();
+                    this.menu.close();
+                    return;
                 }
-            });
-            this._gearMenu.menu.addMenuItem(this._lyricsToggle);
+            } catch (e) {
+                logError(e, 'Failed to open preferences via extensionManager');
+            }
 
-            // Refresh button
-            const refreshItem = new PopupMenu.PopupMenuItem('Refresh Player');
-            refreshItem.connect('activate', () => {
-                this._findActivePlayer();
-            });
-            this._gearMenu.menu.addMenuItem(refreshItem);
-
-            this._gearMenu.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-            // Info submenu
-            this._infoSubmenu = new PopupMenu.PopupSubMenuMenuItem('About');
-
-            // GitHub link
-            const githubItem = new PopupMenu.PopupMenuItem('View on GitHub');
-            githubItem.connect('activate', () => {
-                Gio.AppInfo.launch_default_for_uri(
-                    'https://github.com/d3osaju/Spotline',
-                    null
-                );
-            });
-            this._infoSubmenu.menu.addMenuItem(githubItem);
-
-            // Credits
-            const creditsItem = new PopupMenu.PopupMenuItem('Created by deosaju', {
-                reactive: false
-            });
-            creditsItem.label.style = 'font-size: 0.9em; color: #888;';
-            this._infoSubmenu.menu.addMenuItem(creditsItem);
-
-            this._gearMenu.menu.addMenuItem(this._infoSubmenu);
+            try {
+                Util.spawn(['gnome-extensions', 'prefs', this._extensionUuid]);
+                this.menu.close();
+            } catch (e) {
+                logError(e, 'Failed to spawn gnome-extensions prefs');
+            }
         }
 
         _applyStyle() {
@@ -1271,7 +1233,7 @@ export default class MusicLyricsExtension extends Extension {
 
     enable() {
         this._settings = this.getSettings();
-        this._indicator = new MusicLyricsIndicator(this._settings, this.path);
+        this._indicator = new MusicLyricsIndicator(this._settings, this.path, this.uuid);
 
         // 本扩展用 add_child() 手动挂到 panel 的 box 上，绕过了
         // Main.panel.addToStatusArea() → Panel._onMenuSet() 这一步，
