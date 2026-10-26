@@ -50,9 +50,13 @@
 .spotline-footer-item,
 .spotline-footer-item:hover,
 .spotline-footer-item:focus,
-.spotline-footer-item:active {
+.spotline-footer-item:active,
+.spotline-footer-item:open,
+.spotline-footer-item:checked {
     background-color: transparent;
+    background-image: none;
     box-shadow: none;
+    border: none;
     border-radius: 0;
 }
 

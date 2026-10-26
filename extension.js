@@ -137,6 +137,18 @@ const MusicLyricsIndicator = GObject.registerClass(
             // 两者半透明，悬停一起淡入、移开一起淡出
             this._gearMenu = new PopupMenu.PopupSubMenuMenuItem('');
             this._gearMenu.add_style_class_name('spotline-footer-item');
+            // 内联样式优先于主题样式表，确保 hover/按下/open 都没有底色遮罩，
+            // 同时把上边距压到最小
+            this._gearMenu.set_style(
+                'background-color: transparent;' +
+                'background-image: none;' +
+                'box-shadow: none;' +
+                'border: none;' +
+                'padding-top: 0;' +
+                'padding-bottom: 0;' +
+                'margin-top: 0;' +
+                'min-height: 18px;'
+            );
             this._gearIcon = new St.Icon({
                 icon_name: 'emblem-system-symbolic',
                 icon_size: 12,
