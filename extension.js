@@ -18,9 +18,9 @@ const NETEASE_LYRIC_URL = 'https://music.163.com/api/song/lyric';
 
 const LYRICS_CACHE_MAX = 50;
 
-// Accept any MPRIS player
+// 只绑定 musicfox 播放器
 function isSupportedPlayer(busName) {
-    return busName.startsWith('org.mpris.MediaPlayer2.');
+    return busName === 'org.mpris.MediaPlayer2.musicfox';
 }
 
 const MusicLyricsIndicator = GObject.registerClass(
@@ -64,36 +64,8 @@ const MusicLyricsIndicator = GObject.registerClass(
             // Keep a reference for non-karaoke mode
             this._label = this._baseLabel;
 
-            // Info icon button
-            this._infoIcon = new St.Icon({
-                icon_name: 'dialog-information-symbolic',
-                style_class: 'system-status-icon',
-                icon_size: 16,
-                y_align: Clutter.ActorAlign.CENTER,
-                opacity: 0,
-                reactive: true
-            });
-
             box.add_child(this._lyricsContainer);
-            box.add_child(this._infoIcon);
             this.add_child(box);
-
-            // Show/hide info icon on hover
-            this.connect('enter-event', () => {
-                this._infoIcon.ease({
-                    opacity: 255,
-                    duration: 200,
-                    mode: Clutter.AnimationMode.EASE_OUT_QUAD
-                });
-            });
-
-            this.connect('leave-event', () => {
-                this._infoIcon.ease({
-                    opacity: 0,
-                    duration: 200,
-                    mode: Clutter.AnimationMode.EASE_OUT_QUAD
-                });
-            });
 
             this._currentTrack = null;
             this._currentLyrics = null;
@@ -106,7 +78,8 @@ const MusicLyricsIndicator = GObject.registerClass(
             this._karaokeLineStart = 0;
             this._karaokeLineEnd = 0;
             this._currentBusName = null;
-            this._busWatchId = null;
+            this._nameOwnerSubId = null;
+            this._dbusConn = null;
             this._lyricsCache = new Map();
             this._soupSession = new Soup.Session();
             this._isPlaying = false;
@@ -139,6 +112,26 @@ const MusicLyricsIndicator = GObject.registerClass(
         }
 
         _buildMenu() {
+            // 封面图
+            this._coverIcon = new St.Icon({
+                icon_name: 'media-optical-cd-audio-symbolic',
+                icon_size: 96,
+                style_class: 'spotline-cover'
+            });
+            const coverBox = new St.BoxLayout({
+                x_expand: true,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER
+            });
+            coverBox.add_child(this._coverIcon);
+            const coverItem = new PopupMenu.PopupBaseMenuItem({
+                reactive: false,
+                can_focus: false
+            });
+            coverItem.add_child(coverBox);
+            this.menu.addMenuItem(coverItem);
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
             // Player info section
             this._playerInfoItem = new PopupMenu.PopupMenuItem('No player connected', {
                 reactive: false
@@ -163,7 +156,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             });
 
             const prevButton = new St.Button({
-                style_class: 'button',
+                style_class: 'button spotline-control-button',
                 child: new St.Icon({
                     icon_name: 'media-skip-backward-symbolic',
                     icon_size: 20
@@ -172,7 +165,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             prevButton.connect('clicked', () => this._controlPlayback('Previous'));
 
             const playPauseButton = new St.Button({
-                style_class: 'button',
+                style_class: 'button spotline-control-button',
                 child: new St.Icon({
                     icon_name: 'media-playback-start-symbolic',
                     icon_size: 20
@@ -182,7 +175,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             playPauseButton.connect('clicked', () => this._controlPlayback('PlayPause'));
 
             const nextButton = new St.Button({
-                style_class: 'button',
+                style_class: 'button spotline-control-button',
                 child: new St.Icon({
                     icon_name: 'media-skip-forward-symbolic',
                     icon_size: 20
@@ -316,14 +309,30 @@ const MusicLyricsIndicator = GObject.registerClass(
         }
 
         _setupDBusMonitoring() {
-            // Watch for new media players appearing on the bus
-            this._busWatchId = Gio.bus_watch_name(
-                Gio.BusType.SESSION,
-                'org.mpris.MediaPlayer2.*',
-                Gio.BusNameWatcherFlags.NONE,
-                () => this._findActivePlayer(),
-                () => this._findActivePlayer()
-            );
+            // Watch for MPRIS players appearing/disappearing.
+            // NOTE: Gio.bus_watch_name() does NOT support wildcards, so the old
+            // "org.mpris.MediaPlayer2.*" watch failed with a g_dbus_is_name
+            // assertion and never fired. Subscribe to the D-Bus daemon's
+            // NameOwnerChanged signal instead, filtering on the MPRIS prefix.
+            try {
+                this._dbusConn = Gio.bus_get_sync(Gio.BusType.SESSION, null);
+                this._nameOwnerSubId = this._dbusConn.signal_subscribe(
+                    'org.freedesktop.DBus',
+                    'org.freedesktop.DBus',
+                    'NameOwnerChanged',
+                    '/org/freedesktop/DBus',
+                    null,
+                    Gio.DBusSignalFlags.NONE,
+                    (conn, sender, path, iface, signal, params) => {
+                        const name = params.deep_unpack()[0];
+                        if (name && name.startsWith('org.mpris.MediaPlayer2.')) {
+                            this._findActivePlayer();
+                        }
+                    }
+                );
+            } catch (e) {
+                logError(e, 'Failed to watch for MPRIS players');
+            }
 
             this._findActivePlayer();
         }
@@ -468,7 +477,10 @@ const MusicLyricsIndicator = GObject.registerClass(
             let playerName = 'Unknown Player';
             let playerIcon = '♪';
 
-            if (this._currentBusName.includes('spotify')) {
+            if (this._currentBusName.includes('musicfox')) {
+                playerName = 'Musicfox';
+                playerIcon = '🎵';
+            } else if (this._currentBusName.includes('spotify')) {
                 playerName = 'Spotify';
                 playerIcon = '🎵';
             } else if (this._currentBusName.includes('youtube-music')) {
@@ -492,6 +504,19 @@ const MusicLyricsIndicator = GObject.registerClass(
             }
 
             this._playerInfoItem.label.text = `${playerIcon} Playing from ${playerName}`;
+        }
+
+        _loadCover(artUrl) {
+            if (!artUrl) {
+                return;
+            }
+            try {
+                const textureCache = St.TextureCache.get_default();
+                const icon = textureCache.load_uri_async(artUrl, 96, 96);
+                this._coverIcon.set_gicon(icon);
+            } catch (e) {
+                // 加载失败则保留占位图标
+            }
         }
 
         _onPropertiesChanged() {
@@ -547,6 +572,7 @@ const MusicLyricsIndicator = GObject.registerClass(
                 const title = metadataDict['xesam:title']?.unpack() || null;
                 const artist = metadataDict['xesam:artist']?.deep_unpack()[0] || null;
                 const album = metadataDict['xesam:album']?.unpack() || null;
+                const artUrl = metadataDict['mpris:artUrl']?.unpack() || null;
 
                 // If both title and artist are missing, show icon or nothing
                 if (!title && !artist) {
@@ -563,6 +589,9 @@ const MusicLyricsIndicator = GObject.registerClass(
 
                 // Update menu with track info
                 this._trackInfoItem.label.text = `${this._currentTrack.artist} - ${this._currentTrack.title}`;
+
+                // 加载封面图
+                this._loadCover(artUrl);
 
                 // Try to fetch lyrics if enabled
                 if (this._showLyrics) {
@@ -895,6 +924,14 @@ const MusicLyricsIndicator = GObject.registerClass(
             }
 
             const display = this._currentText || 'No music playing';
+
+            // 无音乐播放时隐藏整个指示器，而不是在顶栏显示 "No music playing"
+            if (display === 'No music playing') {
+                this.hide();
+                return;
+            }
+            this.show();
+
             const maxLength = this._settings.get_int('max-text-length');
             const truncated = this._truncateText(display, maxLength);
             this._baseLabel.set_text(truncated);
@@ -952,9 +989,12 @@ const MusicLyricsIndicator = GObject.registerClass(
                 this._propertiesChangedId = null;
             }
 
-            if (this._busWatchId) {
-                Gio.bus_unwatch_name(this._busWatchId);
-                this._busWatchId = null;
+            if (this._nameOwnerSubId) {
+                if (this._dbusConn) {
+                    this._dbusConn.signal_unsubscribe(this._nameOwnerSubId);
+                    this._dbusConn = null;
+                }
+                this._nameOwnerSubId = null;
             }
 
             this._proxy = null;

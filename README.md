@@ -6,6 +6,10 @@ A GNOME Shell extension that displays synchronized lyrics with karaoke animation
 
 Fork of [SpotLine](https://github.com/d3osaju/Spotline) by deosaju, with significant enhancements.
 
+> **This fork** ([Coveduoji/spotline-enhanced](https://github.com/Coveduoji/spotline-enhanced)) adds
+> GNOME 49–51 support, Musicfox-only binding, album art, and a restyled popup.
+> See [Changes in this fork](#changes-in-this-fork).
+
 ![Karaoke lyrics in top bar](screenshots/topbar-karaoke.png)
 
 ## Features
@@ -26,7 +30,7 @@ Fork of [SpotLine](https://github.com/d3osaju/Spotline) by deosaju, with signifi
 
 ## Supported GNOME Versions
 
-45, 46, 47, 48
+45, 46, 47, 48, 49, 50, 51
 
 ## Installation
 
@@ -68,6 +72,33 @@ Or use the GNOME Extensions app / Extension Manager.
 | Caching | None | In-memory lyrics cache |
 | Timing | 500ms polling | Smart scheduling per lyric line |
 | Customization | Position, text length | + font size, colors, width, karaoke toggle |
+
+## Changes in this fork
+
+### Behavior
+
+- **Musicfox-only binding** — `isSupportedPlayer()` now matches only
+  `org.mpris.MediaPlayer2.musicfox`, so browsers, Spotify and other MPRIS players
+  no longer take over the top-bar lyrics.
+- **Hide when idle** — the indicator is hidden entirely instead of showing
+  "No music playing".
+- **D-Bus player watching fixed** — `Gio.bus_watch_name()` does not accept
+  wildcards (`org.mpris.MediaPlayer2.*` failed a `g_dbus_is_name` assertion and
+  never fired). Replaced with a `NameOwnerChanged` subscription on the session bus.
+- **Removed the hover info icon** from the panel button.
+
+### Popup panel
+
+- **Album art** — 96px rounded cover loaded from `mpris:artUrl` through
+  `St.TextureCache.load_uri_async()`, with a CD icon as fallback.
+- **Restyled playback controls** — circular buttons with hover/pressed feedback
+  (`.spotline-control-button`).
+- **Player name** — shows `🎵 Musicfox` when connected to musicfox.
+
+### Compatibility
+
+- `shell-version` extended to `49`, `50`, `51` (verified working on GNOME Shell 50.6,
+  Fedora 44).
 
 ## License
 

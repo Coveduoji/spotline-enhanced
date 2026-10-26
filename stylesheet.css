@@ -3,3 +3,24 @@
     padding: 0 12px;
     text-align: center;
 }
+
+/* 播放控制按钮：圆形 + hover/active 反馈 */
+.spotline-control-button {
+    border-radius: 99px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px;
+    transition-duration: 120ms;
+}
+.spotline-control-button:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+.spotline-control-button:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 封面图：圆角 */
+.spotline-cover {
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
