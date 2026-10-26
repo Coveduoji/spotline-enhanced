@@ -1178,8 +1178,11 @@ export default class MusicLyricsExtension extends Extension {
 
         if (position === 'left') {
             Main.panel._leftBox.add_child(this._indicator);
+            // 锚定指示器左边缘：歌词长度变化时菜单不会左右跳动
+            this._setMenuAlignment(0.0);
         } else if (position === 'center') {
             Main.panel._centerBox.add_child(this._indicator);
+            this._setMenuAlignment(0.5);
         } else {
             // Default to right (status area)
             // We use addToStatusArea but need to handle re-adding carefully
@@ -1188,6 +1191,18 @@ export default class MusicLyricsExtension extends Extension {
             // Since we manually removed it, we can just add it back using the panel method
             // or just use addToStatusArea again (which is safer for right side)
             Main.panel.addToStatusArea('music-lyrics-indicator', this._indicator);
+            // 右侧时锚定右边缘，同理避免跳动
+            this._setMenuAlignment(1.0);
+        }
+    }
+
+    // 手动 add_child 到 panel 的 box 会绕过 PanelMenu.Button 的菜单对齐逻辑，
+    // 默认 0.5（以指示器中心对齐）会让菜单随歌词长度变化左右移动。
+    _setMenuAlignment(alignment) {
+        try {
+            this._indicator.menu.setSourceAlignment(alignment);
+        } catch (e) {
+            logError(e, 'Failed to set menu source alignment');
         }
     }
 }
