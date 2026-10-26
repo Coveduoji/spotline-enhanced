@@ -4,23 +4,63 @@
     text-align: center;
 }
 
-/* 播放控制按钮：圆形 + hover/active 反馈 */
+/* ===== 播放控件 ===== */
+
 .spotline-control-button {
     border-radius: 99px;
-    min-width: 36px;
-    min-height: 36px;
-    padding: 6px;
+    padding: 0;
     transition-duration: 120ms;
 }
-.spotline-control-button:hover {
-    background-color: rgba(255, 255, 255, 0.12);
+
+/* 次级：上一首 / 下一首，无底色，hover 浮现中性灰圆底（深浅主题都可见） */
+.spotline-control-secondary {
+    min-width: 32px;
+    min-height: 32px;
+    background-color: transparent;
 }
-.spotline-control-button:active {
-    background-color: rgba(255, 255, 255, 0.2);
+.spotline-control-secondary:hover {
+    background-color: rgba(128, 128, 128, 0.22);
+}
+.spotline-control-secondary:active {
+    background-color: rgba(128, 128, 128, 0.35);
 }
 
-/* 封面图：圆角 */
+/* 主操作：播放/暂停，系统强调色实心圆 */
+.spotline-control-primary {
+    min-width: 48px;
+    min-height: 48px;
+    background-color: -st-accent-color;
+    color: -st-accent-fg-color;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+/* St 没有 filter，用大扩散 inset 阴影做 hover 提亮 / 按下压暗 */
+.spotline-control-primary:hover {
+    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.14),
+                0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.spotline-control-primary:active {
+    box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.16),
+                0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* ===== 封面与文字 ===== */
+
 .spotline-cover {
-    border-radius: 8px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+
+.spotline-title {
+    font-weight: 700;
+    font-size: 1.05em;
+}
+
+.spotline-artist {
+    font-size: 0.9em;
+    color: #9a9996;
+}
+
+.spotline-player {
+    font-size: 0.78em;
+    color: #9a9996;
 }

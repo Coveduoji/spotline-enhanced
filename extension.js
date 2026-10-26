@@ -154,7 +154,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             // 封面图
             this._coverIcon = new St.Icon({
                 icon_name: 'media-optical-cd-audio-symbolic',
-                icon_size: 96,
+                icon_size: 128,
                 style_class: 'spotline-cover'
             });
             const coverBox = new St.BoxLayout({
@@ -171,56 +171,67 @@ const MusicLyricsIndicator = GObject.registerClass(
             this.menu.addMenuItem(coverItem);
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
+            // 曲名（加粗）/ 歌手（次级）
+            this._titleItem = new PopupMenu.PopupMenuItem('No track playing', {
+                reactive: false
+            });
+            this._titleItem.label.add_style_class_name('spotline-title');
+            this._titleItem.label.clutter_text.ellipsize = 3;
+            this._titleItem.label.style = 'max-width: 300px;';
+            this.menu.addMenuItem(this._titleItem);
+
+            this._artistItem = new PopupMenu.PopupMenuItem('', {
+                reactive: false
+            });
+            this._artistItem.label.add_style_class_name('spotline-artist');
+            this._artistItem.label.clutter_text.ellipsize = 3;
+            this._artistItem.label.style = 'max-width: 300px;';
+            this.menu.addMenuItem(this._artistItem);
+
             // Player info section
             this._playerInfoItem = new PopupMenu.PopupMenuItem('No player connected', {
                 reactive: false
             });
-            this._playerInfoItem.label.style = 'font-size: 0.85em; color: #888;';
+            this._playerInfoItem.label.add_style_class_name('spotline-player');
             this.menu.addMenuItem(this._playerInfoItem);
-
-            // Track info section
-            this._trackInfoItem = new PopupMenu.PopupMenuItem('No track playing', {
-                reactive: false
-            });
-            this.menu.addMenuItem(this._trackInfoItem);
 
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-            // Playback controls
+            // Playback controls：主操作（播放/暂停）用强调色实心大圆，
+            // 前后切歌为无底色的次级小按钮
             const controlsBox = new St.BoxLayout({
                 style_class: 'popup-menu-item',
                 x_expand: true,
                 x_align: Clutter.ActorAlign.CENTER,
-                style: 'spacing: 12px;'
+                y_align: Clutter.ActorAlign.CENTER,
+                style: 'spacing: 20px;'
             });
 
-            const prevButton = new St.Button({
-                style_class: 'button spotline-control-button',
-                child: new St.Icon({
-                    icon_name: 'media-skip-backward-symbolic',
-                    icon_size: 20
-                })
-            });
-            prevButton.connect('clicked', () => this._controlPlayback('Previous'));
+            const makeControl = (iconName, iconSize, extraClass, onClick) => {
+                const btn = new St.Button({
+                    style_class: `spotline-control-button ${extraClass}`,
+                    child: new St.Icon({
+                        icon_name: iconName,
+                        icon_size: iconSize
+                    }),
+                    y_align: Clutter.ActorAlign.CENTER
+                });
+                btn.connect('clicked', onClick);
+                return btn;
+            };
 
-            const playPauseButton = new St.Button({
-                style_class: 'button spotline-control-button',
-                child: new St.Icon({
-                    icon_name: 'media-playback-start-symbolic',
-                    icon_size: 20
-                })
-            });
+            const prevButton = makeControl(
+                'media-skip-backward-symbolic', 16, 'spotline-control-secondary',
+                () => this._controlPlayback('Previous'));
+
+            const playPauseButton = makeControl(
+                'media-playback-start-symbolic', 22, 'spotline-control-primary',
+                () => this._controlPlayback('PlayPause'));
             this._playPauseButton = playPauseButton;
-            playPauseButton.connect('clicked', () => this._controlPlayback('PlayPause'));
 
-            const nextButton = new St.Button({
-                style_class: 'button spotline-control-button',
-                child: new St.Icon({
-                    icon_name: 'media-skip-forward-symbolic',
-                    icon_size: 20
-                })
-            });
-            nextButton.connect('clicked', () => this._controlPlayback('Next'));
+            const nextButton = makeControl(
+                'media-skip-forward-symbolic', 16, 'spotline-control-secondary',
+                () => this._controlPlayback('Next'));
 
             controlsBox.add_child(prevButton);
             controlsBox.add_child(playPauseButton);
@@ -677,7 +688,8 @@ const MusicLyricsIndicator = GObject.registerClass(
                 const metadata = this._playerProxy.get_cached_property('Metadata');
                 if (!metadata) {
                     this._updateLabelText('No music playing');
-                    this._trackInfoItem.label.text = 'No track playing';
+                    this._titleItem.label.text = 'No track playing';
+                    this._artistItem.label.text = '';
                     return;
                 }
 
@@ -690,7 +702,8 @@ const MusicLyricsIndicator = GObject.registerClass(
                 // If both title and artist are missing, show icon or nothing
                 if (!title && !artist) {
                     this._updateLabelText('♪');
-                    this._trackInfoItem.label.text = 'Unknown track';
+                    this._titleItem.label.text = '♪';
+                    this._artistItem.label.text = 'Unknown track';
                     return;
                 }
 
@@ -701,7 +714,8 @@ const MusicLyricsIndicator = GObject.registerClass(
                 };
 
                 // Update menu with track info
-                this._trackInfoItem.label.text = `${this._currentTrack.artist} - ${this._currentTrack.title}`;
+                this._titleItem.label.text = this._currentTrack.title;
+                this._artistItem.label.text = this._currentTrack.artist;
 
                 // 封面：记录当前曲目的封面地址，仅在面板打开时加载
                 this._trackArtUrl = artUrl;
