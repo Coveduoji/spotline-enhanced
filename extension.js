@@ -126,7 +126,6 @@ const MusicLyricsIndicator = GObject.registerClass(
             this.menu.connect('open-state-changed', (menu, isOpen) => {
                 if (isOpen) {
                     this._maybeLoadCover();
-                    this._layoutFooter();
                 }
             });
 
@@ -138,21 +137,18 @@ const MusicLyricsIndicator = GObject.registerClass(
             // 两者半透明，悬停一起淡入、移开一起淡出
             this._gearMenu = new PopupMenu.PopupSubMenuMenuItem('');
             this._gearMenu.add_style_class_name('spotline-footer-item');
-            // 不吃整行宽度：自身半宽居中（宽度在菜单打开时按面板宽度计算）
-            this._gearMenu.x_expand = false;
-            this._gearMenu.x_align = Clutter.ActorAlign.CENTER;
             this._gearIcon = new St.Icon({
                 icon_name: 'emblem-system-symbolic',
-                icon_size: 13,
+                icon_size: 12,
                 opacity: 140,
                 y_align: Clutter.ActorAlign.CENTER
             });
             this._balanceArc = new St.Icon({
                 gicon: this._iconFor('arc'),
-                icon_size: 16,
+                icon_size: 14,
                 opacity: 140,
                 x_align: Clutter.ActorAlign.END,
-                y_align: Clutter.ActorAlign.END
+                y_align: Clutter.ActorAlign.CENTER
             });
 
             try {
@@ -403,18 +399,6 @@ const MusicLyricsIndicator = GObject.registerClass(
                 GLib.file_set_contents(path, this._iconSvg(name, color));
             }
             return new Gio.FileIcon({ file: Gio.File.new_for_path(path) });
-        }
-
-        // 底部设置行宽度 = 面板宽度的一半
-        _layoutFooter() {
-            try {
-                const menuWidth = this.menu.box.width || this.menu.actor.width;
-                if (menuWidth > 0 && this._gearMenu) {
-                    this._gearMenu.width = Math.round(menuWidth / 2);
-                }
-            } catch (e) {
-                // 忽略：拿不到宽度时保持自然宽度
-            }
         }
 
         // 挂到 panel 之后再刷新一次：_buildMenu() 时控件还没主题节点，
