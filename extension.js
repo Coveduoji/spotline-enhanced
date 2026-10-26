@@ -84,6 +84,16 @@ const MusicLyricsIndicator = GObject.registerClass(
             this._dbusConn = null;
             this._lyricsCache = new Map();
             this._soupSession = new Soup.Session();
+            // 歌词与封面都来自国内（163.com / 126.net），直连即可。
+            // 不显式清空的话 Soup 会走 GNOME 系统代理（Clash），
+            // 代理一关封面和歌词就全挂了。
+            try {
+                this._soupSession.set_proxy_resolver(
+                    Gio.SimpleProxyResolver.new(null, ['localhost', '127.0.0.1'])
+                );
+            } catch (e) {
+                logError(e, 'Failed to disable proxy for media requests');
+            }
             this._isPlaying = false;
             this._debounceTimeoutId = null;
             this._retryTimeoutId = null;
