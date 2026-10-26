@@ -151,59 +151,47 @@ const MusicLyricsIndicator = GObject.registerClass(
             this.menu.addMenuItem(this._gearMenu);
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-            // 封面 + 曲目信息：左侧固定卡片布局
+            // 封面图
             this._coverIcon = new St.Icon({
                 icon_name: 'media-optical-cd-audio-symbolic',
                 icon_size: 96,
-                style_class: 'spotline-cover',
+                style_class: 'spotline-cover'
+            });
+            const coverBox = new St.BoxLayout({
+                x_expand: true,
+                x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER
             });
-
-            this._trackLabel = new St.Label({
-                text: 'No track playing',
-                style_class: 'spotline-track-title'
-            });
-            this._trackLabel.clutter_text.ellipsize = 3;   // 过长时省略号，避免撑宽面板
-
-            this._playerLabel = new St.Label({
-                text: 'No player connected',
-                style_class: 'spotline-player-name'
-            });
-            this._playerLabel.clutter_text.ellipsize = 3;
-
-            const infoBox = new St.BoxLayout({
-                vertical: true,
-                x_expand: true,
-                x_align: Clutter.ActorAlign.START,
-                y_align: Clutter.ActorAlign.CENTER,
-                style: 'spacing: 4px;'
-            });
-            infoBox.add_child(this._trackLabel);
-            infoBox.add_child(this._playerLabel);
-
-            const cardBox = new St.BoxLayout({
-                x_expand: true,
-                x_align: Clutter.ActorAlign.START,
-                y_align: Clutter.ActorAlign.CENTER,
-                style: 'spacing: 12px;'
-            });
-            cardBox.add_child(this._coverIcon);
-            cardBox.add_child(infoBox);
-
-            const cardItem = new PopupMenu.PopupBaseMenuItem({
+            coverBox.add_child(this._coverIcon);
+            const coverItem = new PopupMenu.PopupBaseMenuItem({
                 reactive: false,
                 can_focus: false
             });
-            cardItem.add_child(cardBox);
-            this.menu.addMenuItem(cardItem);
+            coverItem.add_child(coverBox);
+            this.menu.addMenuItem(coverItem);
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-            // 播放控制：左对齐
+            // Player info section
+            this._playerInfoItem = new PopupMenu.PopupMenuItem('No player connected', {
+                reactive: false
+            });
+            this._playerInfoItem.label.style = 'font-size: 0.85em; color: #888;';
+            this.menu.addMenuItem(this._playerInfoItem);
+
+            // Track info section
+            this._trackInfoItem = new PopupMenu.PopupMenuItem('No track playing', {
+                reactive: false
+            });
+            this.menu.addMenuItem(this._trackInfoItem);
+
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+            // Playback controls
             const controlsBox = new St.BoxLayout({
                 style_class: 'popup-menu-item',
                 x_expand: true,
-                x_align: Clutter.ActorAlign.START,
-                style: 'spacing: 8px;'
+                x_align: Clutter.ActorAlign.CENTER,
+                style: 'spacing: 12px;'
             });
 
             const prevButton = new St.Button({
@@ -518,7 +506,7 @@ const MusicLyricsIndicator = GObject.registerClass(
 
         _updatePlayerInfo() {
             if (!this._currentBusName) {
-                this._playerLabel.text = 'No player connected';
+                this._playerInfoItem.label.text = 'No player connected';
                 return;
             }
 
@@ -551,7 +539,7 @@ const MusicLyricsIndicator = GObject.registerClass(
                 playerIcon = '🌐';
             }
 
-            this._playerLabel.text = `${playerIcon} Playing from ${playerName}`;
+            this._playerInfoItem.label.text = `${playerIcon} Playing from ${playerName}`;
         }
 
         _coverCacheDir() {
@@ -689,7 +677,7 @@ const MusicLyricsIndicator = GObject.registerClass(
                 const metadata = this._playerProxy.get_cached_property('Metadata');
                 if (!metadata) {
                     this._updateLabelText('No music playing');
-                    this._trackLabel.text = 'No track playing';
+                    this._trackInfoItem.label.text = 'No track playing';
                     return;
                 }
 
@@ -702,7 +690,7 @@ const MusicLyricsIndicator = GObject.registerClass(
                 // If both title and artist are missing, show icon or nothing
                 if (!title && !artist) {
                     this._updateLabelText('♪');
-                    this._trackLabel.text = 'Unknown track';
+                    this._trackInfoItem.label.text = 'Unknown track';
                     return;
                 }
 
@@ -713,7 +701,7 @@ const MusicLyricsIndicator = GObject.registerClass(
                 };
 
                 // Update menu with track info
-                this._trackLabel.text = `${this._currentTrack.artist} - ${this._currentTrack.title}`;
+                this._trackInfoItem.label.text = `${this._currentTrack.artist} - ${this._currentTrack.title}`;
 
                 // 封面：记录当前曲目的封面地址，仅在面板打开时加载
                 this._trackArtUrl = artUrl;

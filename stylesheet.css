@@ -24,12 +24,3 @@
     border-radius: 8px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
-
-/* 曲目 / 播放器文字 */
-.spotline-track-title {
-    font-weight: 600;
-}
-.spotline-player-name {
-    font-size: 0.85em;
-    color: #9a9996;
-}
