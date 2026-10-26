@@ -68,7 +68,8 @@ const MusicLyricsIndicator = GObject.registerClass(
             this.add_child(box);
 
             this._currentTrack = null;
-            this._currentArtUrl = null;
+            this._trackArtUrl = null;      // 当前曲目的封面地址
+            this._loadedArtUrl = null;     // 已渲染到面板的封面地址
             this._currentLyrics = null;
             this._currentLine = '';
             this._currentLyricIndex = -1;
@@ -109,6 +110,14 @@ const MusicLyricsIndicator = GObject.registerClass(
             );
 
             this._buildMenu();
+
+            // 面板打开时才去取封面
+            this.menu.connect('open-state-changed', (menu, isOpen) => {
+                if (isOpen) {
+                    this._maybeLoadCover();
+                }
+            });
+
             this._setupDBusMonitoring();
         }
 
@@ -523,25 +532,71 @@ const MusicLyricsIndicator = GObject.registerClass(
             this._playerInfoItem.label.text = `${playerIcon} Playing from ${playerName}`;
         }
 
-        _loadCover(artUrl) {
-            if (!artUrl || artUrl === this._currentArtUrl) {
+        _coverCacheDir() {
+            const dir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'spotline-enhanced']);
+            GLib.mkdir_with_parents(dir, 0o755);
+            return dir;
+        }
+
+        // 面板关闭时不下载封面，避免为每首歌都发一次请求
+        _maybeLoadCover() {
+            const artUrl = this._trackArtUrl;
+            if (!artUrl || artUrl === this._loadedArtUrl || !this.menu.isOpen) {
                 return;
             }
-            this._currentArtUrl = artUrl;
+            this._loadCover(artUrl);
+        }
 
-            // artUrl 通常是 http:// 远程地址（网易云 CDN）。
-            // GNOME Shell 50 的 St.TextureCache 已无 load_bytes_async，
-            // 这里用 Soup 下载 → 落到缓存目录 → 用 GFileIcon 交给 St 渲染。
-            const cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'spotline-enhanced']);
-            GLib.mkdir_with_parents(cacheDir, 0o755);
+        _applyCover(path, artUrl) {
+            if (artUrl !== this._trackArtUrl) {
+                return;   // 期间已切歌，丢弃
+            }
+            this._loadedArtUrl = artUrl;
+            this._coverIcon.set_gicon(new Gio.FileIcon({ file: Gio.File.new_for_path(path) }));
+        }
 
-            const applyCover = (path) => {
-                if (artUrl !== this._currentArtUrl) {
-                    return false;
+        // 缓存只保留最近 N 张，防止无限增长
+        _pruneCoverCache(dir, keep = 60) {
+            try {
+                const enumR = Gio.File.new_for_path(dir).enumerate_children(
+                    'standard::name,time::modified',
+                    Gio.FileQueryInfoFlags.NONE,
+                    null
+                );
+
+                const entries = [];
+                let info;
+                while ((info = enumR.next_file(null)) !== null) {
+                    entries.push({
+                        name: info.get_name(),
+                        mtime: info.get_attribute_uint64('time::modified')
+                    });
                 }
-                this._coverIcon.set_gicon(new Gio.FileIcon({ file: Gio.File.new_for_path(path) }));
-                return true;
-            };
+                enumR.close(null);
+
+                if (entries.length <= keep) {
+                    return;
+                }
+
+                entries.sort((a, b) => b.mtime - a.mtime);
+                for (const entry of entries.slice(keep)) {
+                    Gio.File.new_for_path(GLib.build_filenamev([dir, entry.name])).delete(null);
+                }
+            } catch (e) {
+                // 清理失败不影响使用
+            }
+        }
+
+        _loadCover(artUrl) {
+            // 以 URL 哈希做键：命中缓存就不发请求
+            const cacheDir = this._coverCacheDir();
+            const key = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, artUrl, -1).slice(0, 16);
+            const path = GLib.build_filenamev([cacheDir, `${key}.img`]);
+
+            if (GLib.file_test(path, GLib.FileTest.EXISTS)) {
+                this._applyCover(path, artUrl);
+                return;
+            }
 
             try {
                 const msg = Soup.Message.new('GET', artUrl);
@@ -555,15 +610,9 @@ const MusicLyricsIndicator = GObject.registerClass(
                             return;
                         }
 
-                        // 以内容哈希命名，同一张封面只存一份
-                        const hash = GLib.compute_checksum_for_data(
-                            GLib.ChecksumType.SHA256, bytes.get_data()).slice(0, 16);
-                        const path = GLib.build_filenamev([cacheDir, `${hash}.img`]);
-
-                        if (!GLib.file_test(path, GLib.FileTest.EXISTS)) {
-                            GLib.file_set_contents(path, bytes.get_data());
-                        }
-                        applyCover(path);
+                        GLib.file_set_contents(path, bytes.get_data());
+                        this._applyCover(path, artUrl);
+                        this._pruneCoverCache(cacheDir);
                     } catch (e) {
                         logError(e, 'Failed to download album art');
                     }
@@ -644,8 +693,9 @@ const MusicLyricsIndicator = GObject.registerClass(
                 // Update menu with track info
                 this._trackInfoItem.label.text = `${this._currentTrack.artist} - ${this._currentTrack.title}`;
 
-                // 加载封面图
-                this._loadCover(artUrl);
+                // 封面：记录当前曲目的封面地址，仅在面板打开时加载
+                this._trackArtUrl = artUrl;
+                this._maybeLoadCover();
 
                 // Try to fetch lyrics if enabled
                 if (this._showLyrics) {
