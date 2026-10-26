@@ -133,24 +133,36 @@ const MusicLyricsIndicator = GObject.registerClass(
         }
 
         _buildMenu() {
-            // 左上角齿轮入口：歌词开关 / 刷新 / 关于
-            this._gearMenu = new PopupMenu.PopupSubMenuMenuItem('设置');
+            // 设置入口：只显示一个小齿轮，半透明、悬停提亮，
+            // 并且放在面板最底部，不抢封面和控制的视线
+            this._gearMenu = new PopupMenu.PopupSubMenuMenuItem('');
+            this._gearIcon = new St.Icon({
+                icon_name: 'emblem-system-symbolic',
+                icon_size: 13,
+                opacity: 140,
+                y_align: Clutter.ActorAlign.CENTER
+            });
             try {
-                const gearIcon = new St.Icon({
-                    icon_name: 'emblem-system-symbolic',
-                    icon_size: 14,
-                    y_align: Clutter.ActorAlign.CENTER
-                });
                 const labelBox = this._gearMenu.label.get_parent();
                 labelBox.insert_child_at_index(
-                    gearIcon,
+                    this._gearIcon,
                     labelBox.get_children().indexOf(this._gearMenu.label)
                 );
             } catch (e) {
-                // 布局结构变化时退化成纯文字
+                // 布局结构变化时退化成空行
             }
-            this.menu.addMenuItem(this._gearMenu);
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            this._gearMenu.connect('enter-event', () => {
+                this._gearIcon.ease({
+                    opacity: 255, duration: 150,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD
+                });
+            });
+            this._gearMenu.connect('leave-event', () => {
+                this._gearIcon.ease({
+                    opacity: 140, duration: 150,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD
+                });
+            });
 
             // 封面图
             this._coverIcon = new St.Icon({
@@ -240,6 +252,10 @@ const MusicLyricsIndicator = GObject.registerClass(
             });
             controlsItem.add_child(controlsBox);
             this.menu.addMenuItem(controlsItem);
+
+            // 设置入口置于最底部
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            this.menu.addMenuItem(this._gearMenu);
 
             // ---- 以下设置项统一收进左上角齿轮菜单 ----
             // Toggle lyrics display
