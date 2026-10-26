@@ -1133,6 +1133,16 @@ export default class MusicLyricsExtension extends Extension {
         this._settings = this.getSettings();
         this._indicator = new MusicLyricsIndicator(this._settings);
 
+        // 本扩展用 add_child() 手动挂到 panel 的 box 上，绕过了
+        // Main.panel.addToStatusArea() → Panel._onMenuSet() 这一步，
+        // 菜单因此没有注册到 panel 的 menuManager，也就没有模态抓取，
+        // 表现为「点面板外面关不掉」。这里补上注册。
+        try {
+            Main.panel.menuManager.addMenu(this._indicator.menu);
+        } catch (e) {
+            logError(e, 'Failed to register lyrics menu with the panel menu manager');
+        }
+
         this._updatePosition();
 
         this._settingsSignalId = this._settings.connect('changed::position-in-panel', () => {
