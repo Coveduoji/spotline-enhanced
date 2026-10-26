@@ -126,6 +126,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             this.menu.connect('open-state-changed', (menu, isOpen) => {
                 if (isOpen) {
                     this._maybeLoadCover();
+                    this._layoutFooter();
                 }
             });
 
@@ -136,6 +137,10 @@ const MusicLyricsIndicator = GObject.registerClass(
             // 设置入口：左下角小齿轮 + 右下角粗弧线做视觉平衡，
             // 两者半透明，悬停一起淡入、移开一起淡出
             this._gearMenu = new PopupMenu.PopupSubMenuMenuItem('');
+            this._gearMenu.add_style_class_name('spotline-footer-item');
+            // 不吃整行宽度：自身半宽居中（宽度在菜单打开时按面板宽度计算）
+            this._gearMenu.x_expand = false;
+            this._gearMenu.x_align = Clutter.ActorAlign.CENTER;
             this._gearIcon = new St.Icon({
                 icon_name: 'emblem-system-symbolic',
                 icon_size: 13,
@@ -267,8 +272,7 @@ const MusicLyricsIndicator = GObject.registerClass(
             controlsItem.add_child(controlsBox);
             this.menu.addMenuItem(controlsItem);
 
-            // 设置入口置于最底部
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            // 设置入口置于最底部（不加上方分隔线）
             this.menu.addMenuItem(this._gearMenu);
 
             // ---- 以下设置项统一收进左上角齿轮菜单 ----
@@ -378,12 +382,10 @@ const MusicLyricsIndicator = GObject.registerClass(
                     '<rect x="10.4" y="2.8" width="2.6" height="10.4" rx="1.3" fill="COLOR"/>' +
                     '<path d="M3 3.6 L9.2 8 L3 12.4 Z" fill="COLOR" stroke="COLOR" ' +
                     'stroke-width="2" stroke-linejoin="round"/>',
-                // 右下角装饰：两条同心圆弧，呼应面板圆角（"））"效果）
+                // 右下角装饰：单条圆弧，呼应面板圆角（约 120°）
                 'arc':
-                    '<path d="M15 9 A6 6 0 0 1 9 15" fill="none" stroke="COLOR" ' +
-                    'stroke-width="2" stroke-linecap="round"/>' +
-                    '<path d="M12.6 9 A3.6 3.6 0 0 1 9 12.6" fill="none" stroke="COLOR" ' +
-                    'stroke-width="1.7" stroke-linecap="round"/>',
+                    '<path d="M15 9 A6 6 0 0 1 6 14.2" fill="none" stroke="COLOR" ' +
+                    'stroke-width="2" stroke-linecap="round"/>',
             };
             const body = (shapes[name] || '').split('COLOR').join(color);
             return '<?xml version="1.0" encoding="UTF-8"?>' +
@@ -401,6 +403,18 @@ const MusicLyricsIndicator = GObject.registerClass(
                 GLib.file_set_contents(path, this._iconSvg(name, color));
             }
             return new Gio.FileIcon({ file: Gio.File.new_for_path(path) });
+        }
+
+        // 底部设置行宽度 = 面板宽度的一半
+        _layoutFooter() {
+            try {
+                const menuWidth = this.menu.box.width || this.menu.actor.width;
+                if (menuWidth > 0 && this._gearMenu) {
+                    this._gearMenu.width = Math.round(menuWidth / 2);
+                }
+            } catch (e) {
+                // 忽略：拿不到宽度时保持自然宽度
+            }
         }
 
         // 挂到 panel 之后再刷新一次：_buildMenu() 时控件还没主题节点，

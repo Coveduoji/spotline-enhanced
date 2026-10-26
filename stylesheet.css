@@ -44,3 +44,14 @@
     font-size: 0.78em;
     color: #9a9996;
 }
+
+/* 底部设置行：不要整行的 hover / 按下遮罩，
+   视觉上只靠齿轮与圆弧自身的淡入淡出 */
+.spotline-footer-item,
+.spotline-footer-item:hover,
+.spotline-footer-item:focus,
+.spotline-footer-item:active {
+    background-color: transparent;
+    box-shadow: none;
+    border-radius: 0;
+}
