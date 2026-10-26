@@ -133,8 +133,8 @@ const MusicLyricsIndicator = GObject.registerClass(
         }
 
         _buildMenu() {
-            // 设置入口：只显示一个小齿轮，半透明、悬停提亮，
-            // 并且放在面板最底部，不抢封面和控制的视线
+            // 设置入口：左下角小齿轮 + 右下角粗弧线做视觉平衡，
+            // 两者半透明，悬停一起淡入、移开一起淡出
             this._gearMenu = new PopupMenu.PopupSubMenuMenuItem('');
             this._gearIcon = new St.Icon({
                 icon_name: 'emblem-system-symbolic',
@@ -142,6 +142,13 @@ const MusicLyricsIndicator = GObject.registerClass(
                 opacity: 140,
                 y_align: Clutter.ActorAlign.CENTER
             });
+            this._balanceArc = new St.Icon({
+                gicon: this._iconFor('arc'),
+                icon_size: 15,
+                opacity: 140,
+                y_align: Clutter.ActorAlign.CENTER
+            });
+
             try {
                 const labelBox = this._gearMenu.label.get_parent();
                 labelBox.insert_child_at_index(
@@ -151,18 +158,24 @@ const MusicLyricsIndicator = GObject.registerClass(
             } catch (e) {
                 // 布局结构变化时退化成空行
             }
-            this._gearMenu.connect('enter-event', () => {
-                this._gearIcon.ease({
-                    opacity: 255, duration: 150,
-                    mode: Clutter.AnimationMode.EASE_OUT_QUAD
-                });
-            });
-            this._gearMenu.connect('leave-event', () => {
-                this._gearIcon.ease({
-                    opacity: 140, duration: 150,
-                    mode: Clutter.AnimationMode.EASE_OUT_QUAD
-                });
-            });
+            try {
+                // 默认的细三角换成手绘弧线
+                this._gearMenu._triangleBin.hide();
+            } catch (e) {
+                // 结构变化时保留默认三角
+            }
+            this._gearMenu.add_child(this._balanceArc);
+
+            const fadeTo = (opacity) => {
+                for (const icon of [this._gearIcon, this._balanceArc]) {
+                    icon.ease({
+                        opacity, duration: 150,
+                        mode: Clutter.AnimationMode.EASE_OUT_QUAD
+                    });
+                }
+            };
+            this._gearMenu.connect('enter-event', () => fadeTo(255));
+            this._gearMenu.connect('leave-event', () => fadeTo(140));
 
             // 封面图
             this._coverIcon = new St.Icon({
@@ -364,6 +377,10 @@ const MusicLyricsIndicator = GObject.registerClass(
                     '<rect x="10.4" y="2.8" width="2.6" height="10.4" rx="1.3" fill="COLOR"/>' +
                     '<path d="M3 3.6 L9.2 8 L3 12.4 Z" fill="COLOR" stroke="COLOR" ' +
                     'stroke-width="2" stroke-linejoin="round"/>',
+                // 右下角装饰弧线：与齿轮同为圆形轮廓，但线更粗
+                'arc':
+                    '<path d="M8 2 A6 6 0 1 1 2 8" fill="none" stroke="COLOR" ' +
+                    'stroke-width="2.6" stroke-linecap="round"/>',
             };
             const body = (shapes[name] || '').split('COLOR').join(color);
             return '<?xml version="1.0" encoding="UTF-8"?>' +
@@ -392,6 +409,9 @@ const MusicLyricsIndicator = GObject.registerClass(
                 }
                 if (this._nextButton) {
                     this._nextButton.child.set_gicon(this._iconFor('skip-forward'));
+                }
+                if (this._balanceArc) {
+                    this._balanceArc.set_gicon(this._iconFor('arc'));
                 }
                 if (this._playPauseButton) {
                     let playing = false;
