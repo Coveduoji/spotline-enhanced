@@ -4,43 +4,23 @@
     text-align: center;
 }
 
-/* ===== 播放控件 ===== */
+/* ===== 播放控件 =====
+   三个按钮统一：无底色、36px、圆角方形（不再是正圆），
+   hover/按下仅浮现中性灰底，深浅主题都可见。 */
 
 .spotline-control-button {
-    border-radius: 99px;
+    border-radius: 10px;
+    min-width: 36px;
+    min-height: 36px;
     padding: 0;
+    background-color: transparent;
     transition-duration: 120ms;
 }
-
-/* 次级：上一首 / 下一首，无底色，hover 浮现中性灰圆底（深浅主题都可见） */
-.spotline-control-secondary {
-    min-width: 32px;
-    min-height: 32px;
-    background-color: transparent;
-}
-.spotline-control-secondary:hover {
+.spotline-control-button:hover {
     background-color: rgba(128, 128, 128, 0.22);
 }
-.spotline-control-secondary:active {
+.spotline-control-button:active {
     background-color: rgba(128, 128, 128, 0.35);
-}
-
-/* 主操作：播放/暂停，系统强调色实心圆 */
-.spotline-control-primary {
-    min-width: 48px;
-    min-height: 48px;
-    background-color: -st-accent-color;
-    color: -st-accent-fg-color;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
-}
-/* St 没有 filter，用大扩散 inset 阴影做 hover 提亮 / 按下压暗 */
-.spotline-control-primary:hover {
-    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.14),
-                0 1px 3px rgba(0, 0, 0, 0.35);
-}
-.spotline-control-primary:active {
-    box-shadow: inset 0 0 0 999px rgba(0, 0, 0, 0.16),
-                0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 /* ===== 封面与文字 ===== */

@@ -25,10 +25,11 @@ function isSupportedPlayer(busName) {
 
 const MusicLyricsIndicator = GObject.registerClass(
     class MusicLyricsIndicator extends PanelMenu.Button {
-        _init(settings) {
+        _init(settings, extensionPath) {
             super._init(0.5, 'Music Lyrics Indicator');
 
             this._settings = settings;
+            this._extensionPath = extensionPath;
 
             // Create a box to hold lyrics container and info icon
             const box = new St.BoxLayout({
@@ -204,15 +205,15 @@ const MusicLyricsIndicator = GObject.registerClass(
                 x_expand: true,
                 x_align: Clutter.ActorAlign.CENTER,
                 y_align: Clutter.ActorAlign.CENTER,
-                style: 'spacing: 20px;'
+                style: 'spacing: 12px;'
             });
 
-            const makeControl = (iconName, iconSize, extraClass, onClick) => {
+            const makeControl = (iconName, onClick) => {
                 const btn = new St.Button({
-                    style_class: `spotline-control-button ${extraClass}`,
+                    style_class: 'spotline-control-button',
                     child: new St.Icon({
-                        icon_name: iconName,
-                        icon_size: iconSize
+                        gicon: this._iconFor(iconName),
+                        icon_size: 16
                     }),
                     y_align: Clutter.ActorAlign.CENTER
                 });
@@ -220,18 +221,14 @@ const MusicLyricsIndicator = GObject.registerClass(
                 return btn;
             };
 
-            const prevButton = makeControl(
-                'media-skip-backward-symbolic', 16, 'spotline-control-secondary',
-                () => this._controlPlayback('Previous'));
+            const prevButton = makeControl('skip-backward', () => this._controlPlayback('Previous'));
+            this._prevButton = prevButton;
 
-            const playPauseButton = makeControl(
-                'media-playback-start-symbolic', 22, 'spotline-control-primary',
-                () => this._controlPlayback('PlayPause'));
+            const playPauseButton = makeControl('play', () => this._controlPlayback('PlayPause'));
             this._playPauseButton = playPauseButton;
 
-            const nextButton = makeControl(
-                'media-skip-forward-symbolic', 16, 'spotline-control-secondary',
-                () => this._controlPlayback('Next'));
+            const nextButton = makeControl('skip-forward', () => this._controlPlayback('Next'));
+            this._nextButton = nextButton;
 
             controlsBox.add_child(prevButton);
             controlsBox.add_child(playPauseButton);
@@ -319,6 +316,82 @@ const MusicLyricsIndicator = GObject.registerClass(
             }
         }
 
+        // ---- 圆角图标：运行时按主题前景色生成 SVG，深浅主题都能看清 ----
+        // （不用 -symbolic 名称：FileIcon 走 pixbuf 渲染，不会做符号化重着色）
+        _themIconColor() {
+            try {
+                const node = this.menu.actor.get_theme_node();
+                if (node) {
+                    const c = node.get_foreground_color();
+                    const hex = (v) => v.toString(16).padStart(2, '0');
+                    return `#${hex(c.red)}${hex(c.green)}${hex(c.blue)}`;
+                }
+            } catch (e) {
+                // 落到默认值
+            }
+            return '#808080';
+        }
+
+        _iconSvg(name, color) {
+            const shapes = {
+                'play':
+                    '<path d="M5.2 3.4 L12 8 L5.2 12.6 Z" fill="COLOR" stroke="COLOR" ' +
+                    'stroke-width="2.2" stroke-linejoin="round"/>',
+                'pause':
+                    '<rect x="4" y="2.8" width="3.2" height="10.4" rx="1.6" fill="COLOR"/>' +
+                    '<rect x="8.8" y="2.8" width="3.2" height="10.4" rx="1.6" fill="COLOR"/>',
+                'skip-backward':
+                    '<rect x="3" y="2.8" width="2.6" height="10.4" rx="1.3" fill="COLOR"/>' +
+                    '<path d="M13 3.6 L6.8 8 L13 12.4 Z" fill="COLOR" stroke="COLOR" ' +
+                    'stroke-width="2" stroke-linejoin="round"/>',
+                'skip-forward':
+                    '<rect x="10.4" y="2.8" width="2.6" height="10.4" rx="1.3" fill="COLOR"/>' +
+                    '<path d="M3 3.6 L9.2 8 L3 12.4 Z" fill="COLOR" stroke="COLOR" ' +
+                    'stroke-width="2" stroke-linejoin="round"/>',
+            };
+            const body = (shapes[name] || '').split('COLOR').join(color);
+            return '<?xml version="1.0" encoding="UTF-8"?>' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">' +
+                body + '</svg>';
+        }
+
+        _iconFor(name) {
+            const color = this._themIconColor();
+            const dir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'spotline-enhanced', 'icons']);
+            GLib.mkdir_with_parents(dir, 0o755);
+
+            const path = GLib.build_filenamev([dir, `${name}-${color.slice(1)}.svg`]);
+            if (!GLib.file_test(path, GLib.FileTest.EXISTS)) {
+                GLib.file_set_contents(path, this._iconSvg(name, color));
+            }
+            return new Gio.FileIcon({ file: Gio.File.new_for_path(path) });
+        }
+
+        // 挂到 panel 之后再刷新一次：_buildMenu() 时控件还没主题节点，
+        // 只能拿到兜底色
+        refreshControlIcons() {
+            try {
+                if (this._prevButton) {
+                    this._prevButton.child.set_gicon(this._iconFor('skip-backward'));
+                }
+                if (this._nextButton) {
+                    this._nextButton.child.set_gicon(this._iconFor('skip-forward'));
+                }
+                if (this._playPauseButton) {
+                    let playing = false;
+                    try {
+                        const status = this._playerProxy?.get_cached_property('PlaybackStatus');
+                        playing = !!status && status.unpack() === 'Playing';
+                    } catch (e) {
+                        playing = false;
+                    }
+                    this._playPauseButton.child.set_gicon(this._iconFor(playing ? 'pause' : 'play'));
+                }
+            } catch (e) {
+                logError(e, 'Failed to refresh control icons');
+            }
+        }
+
         _controlPlayback(action) {
             if (!this._playerProxy) {
                 return;
@@ -347,8 +420,9 @@ const MusicLyricsIndicator = GObject.registerClass(
                 const playbackStatus = this._playerProxy.get_cached_property('PlaybackStatus');
                 if (playbackStatus) {
                     const status = playbackStatus.unpack();
-                    const icon = status === 'Playing' ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
-                    this._playPauseButton.child.icon_name = icon;
+                    this._playPauseButton.child.set_gicon(
+                        this._iconFor(status === 'Playing' ? 'pause' : 'play')
+                    );
                 }
             } catch (e) {
                 logError(e, 'Failed to update play/pause button');
@@ -1145,7 +1219,7 @@ export default class MusicLyricsExtension extends Extension {
 
     enable() {
         this._settings = this.getSettings();
-        this._indicator = new MusicLyricsIndicator(this._settings);
+        this._indicator = new MusicLyricsIndicator(this._settings, this.path);
 
         // 本扩展用 add_child() 手动挂到 panel 的 box 上，绕过了
         // Main.panel.addToStatusArea() → Panel._onMenuSet() 这一步，
@@ -1206,6 +1280,9 @@ export default class MusicLyricsExtension extends Extension {
             // 右侧时锚定右边缘，同理避免跳动
             this._setMenuAlignment(1.0);
         }
+
+        // 此时控件已挂到 panel，能取到主题前景色
+        this._indicator.refreshControlIcons();
     }
 
     // 手动 add_child 到 panel 的 box 会绕过 PanelMenu.Button 的菜单对齐逻辑，
