@@ -144,9 +144,10 @@ const MusicLyricsIndicator = GObject.registerClass(
             });
             this._balanceArc = new St.Icon({
                 gicon: this._iconFor('arc'),
-                icon_size: 15,
+                icon_size: 16,
                 opacity: 140,
-                y_align: Clutter.ActorAlign.CENTER
+                x_align: Clutter.ActorAlign.END,
+                y_align: Clutter.ActorAlign.END
             });
 
             try {
@@ -377,10 +378,12 @@ const MusicLyricsIndicator = GObject.registerClass(
                     '<rect x="10.4" y="2.8" width="2.6" height="10.4" rx="1.3" fill="COLOR"/>' +
                     '<path d="M3 3.6 L9.2 8 L3 12.4 Z" fill="COLOR" stroke="COLOR" ' +
                     'stroke-width="2" stroke-linejoin="round"/>',
-                // 右下角装饰弧线：与齿轮同为圆形轮廓，但线更粗
+                // 右下角装饰：两条同心圆弧，呼应面板圆角（"））"效果）
                 'arc':
-                    '<path d="M8 2 A6 6 0 1 1 2 8" fill="none" stroke="COLOR" ' +
-                    'stroke-width="2.6" stroke-linecap="round"/>',
+                    '<path d="M15 9 A6 6 0 0 1 9 15" fill="none" stroke="COLOR" ' +
+                    'stroke-width="2" stroke-linecap="round"/>' +
+                    '<path d="M12.6 9 A3.6 3.6 0 0 1 9 12.6" fill="none" stroke="COLOR" ' +
+                    'stroke-width="1.7" stroke-linecap="round"/>',
             };
             const body = (shapes[name] || '').split('COLOR').join(color);
             return '<?xml version="1.0" encoding="UTF-8"?>' +
