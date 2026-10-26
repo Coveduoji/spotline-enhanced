@@ -146,21 +146,24 @@ const MusicLyricsIndicator = GObject.registerClass(
                 'border: none;' +
                 'padding-top: 0;' +
                 'padding-bottom: 0;' +
+                'padding-left: 3px;' +
+                'padding-right: 3px;' +
                 'margin-top: 0;' +
                 'min-height: 18px;'
             );
+            // 两个图标都靠向行的下边缘，贴近面板左下/右下的圆角
             this._gearIcon = new St.Icon({
                 icon_name: 'emblem-system-symbolic',
                 icon_size: 12,
                 opacity: 140,
-                y_align: Clutter.ActorAlign.CENTER
+                y_align: Clutter.ActorAlign.END
             });
             this._balanceArc = new St.Icon({
                 gicon: this._iconFor('arc'),
                 icon_size: 14,
                 opacity: 140,
                 x_align: Clutter.ActorAlign.END,
-                y_align: Clutter.ActorAlign.CENTER
+                y_align: Clutter.ActorAlign.END
             });
 
             try {
